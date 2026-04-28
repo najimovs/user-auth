@@ -8,11 +8,16 @@ import { db } from "./db.js"
 const PORT = parseInt( process.env.PORT || "3000" )
 const JWT_ACCESS_TOKEN_SECRET = process.env.JWT_ACCESS_TOKEN_SECRET
 const JWT_REFRESH_TOKEN_SECRET = process.env.JWT_REFRESH_TOKEN_SECRET
+const COOKIE_SECRET = process.env.COOKIE_SECRET
 
 const fastify = Fastify( { logger: true } )
 
-fastify.register( cors )
-fastify.register( cookie )
+fastify.register( cors, {
+	credentials: true,
+} )
+fastify.register( cookie, {
+	secret: COOKIE_SECRET,
+} )
 
 fastify.get( "/", () => ( { status: "OK" } ) )
 
@@ -43,6 +48,14 @@ fastify.post( "/signup", async ( req, res ) => {
 	} )
 	const refreshToken = JWT.sign( payload, JWT_REFRESH_TOKEN_SECRET, {
 		expiresIn: 60 * 60 * 24 * 7,
+	} )
+
+	res.setCookie( "refresh_token", refreshToken, {
+		httpOnly: true,
+		sameSite: "lax",
+		secure: process.env.NODE_ENV === "production",
+		signed: true,
+		// path: "/signup",
 	} )
 
 	res.status( 201 ).send( {
