@@ -21,27 +21,30 @@ fastify.register( cookie, {
 
 fastify.get( "/", () => ( { status: "OK" } ) )
 
-fastify.post( "/signup", async ( req, res ) => {
+fastify.post( "/signup", () => ( { status: "signup" } ) )
+fastify.post( "/login", async ( req, res ) => {
 
 	const { username, password } = req.body
 
-	if ( db.users.has( username ) ) {
+	if ( !db.users.has( username ) ) {
 
-		return res.status( 400 ).send( {
-			code: "APP_USERNAME_EXISTS",
+		return res.status( 401 ).send( {
+			code: "APP_USERNAME_NOT_EXISTS",
 		} )
 	}
 
-	const user = {
-		username,
-		password: await argon2.hash( password ),
+	const user = db.users.get( username )
+
+	if ( !( await argon2.verify( user.password, password ) ) ) {
+
+		return res.status( 401 ).send( {
+			code: "APP_PASSWORD_INVALID",
+		} )
 	}
 
 	const payload = {
-		username,
+		username: user.username,
 	}
-
-	db.users.set( username, user )
 
 	const accessToken = JWT.sign( payload, JWT_ACCESS_TOKEN_SECRET, {
 		expiresIn: 60 * 30,
@@ -55,7 +58,6 @@ fastify.post( "/signup", async ( req, res ) => {
 		sameSite: "lax",
 		secure: process.env.NODE_ENV === "production",
 		signed: true,
-		// path: "/signup",
 	} )
 
 	res.status( 201 ).send( {
@@ -63,7 +65,6 @@ fastify.post( "/signup", async ( req, res ) => {
 		refreshToken,
 	} )
 } )
-fastify.post( "/login", () => ( { status: "login" } ) )
 fastify.post( "/refresh", () => ( { status: "refresh" } ) )
 fastify.post( "/colors", () => ( { status: "colors" } ) )
 
