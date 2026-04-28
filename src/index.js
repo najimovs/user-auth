@@ -53,6 +53,8 @@ fastify.post( "/login", async ( req, res ) => {
 		expiresIn: 60 * 60 * 24 * 7,
 	} )
 
+	db.refreshTokens.set( username, refreshToken )
+
 	res.setCookie( "refresh_token", refreshToken, {
 		httpOnly: true,
 		sameSite: "lax",
@@ -65,7 +67,41 @@ fastify.post( "/login", async ( req, res ) => {
 		refreshToken,
 	} )
 } )
-fastify.post( "/refresh", () => ( { status: "refresh" } ) )
-fastify.post( "/colors", () => ( { status: "colors" } ) )
+fastify.post( "/refresh", ( req ) => {
+
+	const refreshToken = req.unsignCookie( req.cookies.refresh_token )
+
+	try {
+
+		const payload = await JWT.verify( refreshToken, JWT_REFRESH_TOKEN_SECRET )
+
+		const refreshTokenInDb = db.refreshTokens.get( payload.username )
+
+		if ( !refreshTokenInDb || refreshTokenInDb !== refreshToken ) {
+
+			return res.status( 401 ).send( {
+				code: "APP_REFRESH_TOKEN_INVALID",
+			} )
+		}
+
+		const accessToken = JWT.sign( payload, JWT_ACCESS_TOKEN_SECRET, {
+			expiresIn: 60 * 30,
+		} )
+
+		return {
+			accessToken,
+		}
+	}
+	catch ( error ) {
+
+		fastify.log.error( error )
+	}
+} )
+
+
+fastify.post( "/colors", () => {
+
+	return [ ...db.colors ]
+} )
 
 fastify.listen( { port: PORT, host: "0.0.0.0" } )
